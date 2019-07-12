@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
-
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -128,6 +126,7 @@ struct NinjaMain : public BuildLogUser {
   int ToolCompilationDatabase(const Options* options, int argc, char* argv[]);
   int ToolRecompact(const Options* options, int argc, char* argv[]);
   int ToolUrtle(const Options* options, int argc, char** argv);
+  int ToolRules(const Options* options, int argc, char* argv[]);
 
   /// Open the build log.
   /// @return false on error.
@@ -340,7 +339,7 @@ int NinjaMain::ToolGraph(const Options* options, int argc, char* argv[]) {
     return 1;
   }
 
-  GraphViz graph;
+  GraphViz graph(&state_, &disk_interface_);
   graph.Start();
   for (vector<Node*>::const_iterator n = nodes.begin(); n != nodes.end(); ++n)
     graph.AddTarget(*n);
@@ -355,6 +354,7 @@ int NinjaMain::ToolQuery(const Options* options, int argc, char* argv[]) {
     return 1;
   }
 
+  DyndepLoader dyndep_loader(&state_, &disk_interface_);
 
   for (int i = 0; i < argc; ++i) {
     string err;
@@ -366,6 +366,11 @@ int NinjaMain::ToolQuery(const Options* options, int argc, char* argv[]) {
 
     printf("%s:\n", node->path().c_str());
     if (Edge* edge = node->in_edge()) {
+      if (edge->dyndep_ && edge->dyndep_->dyndep_pending()) {
+        if (!dyndep_loader.LoadDyndeps(edge->dyndep_, &err)) {
+          Warning("%s\n", err.c_str());
+        }
+      }
       printf("  input: %s\n", edge->rule_->name().c_str());
       for (int in = 0; in < (int)edge->inputs_.size(); in++) {
         const char* label = "";
@@ -404,7 +409,6 @@ int NinjaMain::ToolBrowse(const Options*, int, char**) {
 #if defined(_MSC_VER)
 int NinjaMain::ToolMSVC(const Options* options, int argc, char* argv[]) {
   // Reset getopt: push one argument onto the front of argv, reset optind.
-  printf("Launching msvc");
   argc++;
   argv--;
   optind = 0;
@@ -558,6 +562,55 @@ int NinjaMain::ToolTargets(const Options* options, int argc, char* argv[]) {
   }
 }
 
+int NinjaMain::ToolRules(const Options* options, int argc, char* argv[]) {
+  // Parse options.
+
+  // The rules tool uses getopt, and expects argv[0] to contain the name of
+  // the tool, i.e. "rules".
+  argc++;
+  argv--;
+
+  bool print_description = false;
+
+  optind = 1;
+  int opt;
+  while ((opt = getopt(argc, argv, const_cast<char*>("hd"))) != -1) {
+    switch (opt) {
+    case 'd':
+      print_description = true;
+      break;
+    case 'h':
+    default:
+      printf("usage: ninja -t rules [options]\n"
+             "\n"
+             "options:\n"
+             "  -d     also print the description of the rule\n"
+             "  -h     print this message\n"
+             );
+    return 1;
+    }
+  }
+  argv += optind;
+  argc -= optind;
+
+  // Print rules
+
+  typedef map<string, const Rule*> Rules;
+  const Rules& rules = state_.bindings_.GetRules();
+  for (Rules::const_iterator i = rules.begin(); i != rules.end(); ++i) {
+    printf("%s", i->first.c_str());
+    if (print_description) {
+      const Rule* rule = i->second;
+      const EvalString* description = rule->GetBinding("description");
+      if (description != NULL) {
+        printf(": %s", description->Unparse().c_str());
+      }
+    }
+    printf("\n");
+  }
+  return 0;
+}
+
 enum PrintCommandMode { PCM_Single, PCM_All };
 void PrintCommands(Edge* edge, set<Edge*>* seen, PrintCommandMode mode) {
   if (!edge)
@@ -655,7 +708,7 @@ int NinjaMain::ToolClean(const Options* options, int argc, char* argv[]) {
     return 1;
   }
 
-  Cleaner cleaner(&state_, config_);
+  Cleaner cleaner(&state_, config_, &disk_interface_);
   if (argc >= 1) {
     if (clean_rules)
       return cleaner.CleanRules(argc, argv);
@@ -815,7 +868,6 @@ int NinjaMain::ToolUrtle(const Options* options, int argc, char** argv) {
 /// Find the function to execute for \a tool_name and return it via \a func.
 /// Returns a Tool, or NULL if Ninja should exit.
 const Tool* ChooseTool(const string& tool_name) {
-  printf("choosing tool");
   static const Tool kTools[] = {
     { "browse", "browse dependency graph in a web browser",
       Tool::RUN_AFTER_LOAD, &NinjaMain::ToolBrowse },
@@ -839,6 +891,8 @@ const Tool* ChooseTool(const string& tool_name) {
       Tool::RUN_AFTER_LOAD, &NinjaMain::ToolCompilationDatabase },
     { "recompact",  "recompacts ninja-internal data structures",
       Tool::RUN_AFTER_LOAD, &NinjaMain::ToolRecompact },
+    { "rules",  "list all rules",
+      Tool::RUN_AFTER_LOAD, &NinjaMain::ToolRules },
     { "urtle", NULL,
       Tool::RUN_AFTER_FLAGS, &NinjaMain::ToolUrtle },
     { NULL, NULL, Tool::RUN_AFTER_FLAGS, NULL }
@@ -1117,7 +1171,7 @@ int ExceptionFilter(unsigned int code, struct _EXCEPTION_POINTERS *ep) {
 int ReadFlags(int* argc, char*** argv,
               Options* options, BuildConfig* config) {
   config->parallelism = GuessParallelism();
-  printf("Reading flagts");
+
   enum { OPT_VERSION = 1 };
   const option kLongOptions[] = {
     { "help", no_argument, NULL, 'h' },
@@ -1130,7 +1184,6 @@ int ReadFlags(int* argc, char*** argv,
   while (!options->tool &&
          (opt = getopt_long(*argc, *argv, "d:f:j:k:l:nt:vw:C:h", kLongOptions,
                             NULL)) != -1) {
-    printf("Option found %d", opt);
     switch (opt) {
       case 'd':
         if (!DebugEnable(optarg))
@@ -1206,19 +1259,15 @@ int ReadFlags(int* argc, char*** argv,
 NORETURN void real_main(int argc, char** argv) {
   // Use exit() instead of return in this function to avoid potentially
   // expensive cleanup when destructing NinjaMain.
-  printf("Starting ninja");
   BuildConfig config;
   Options options = {};
   options.input_file = "build.ninja";
   options.dupe_edges_should_err = true;
 
-  printf("Set buf");
   setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
   const char* ninja_command = argv[0];
 
-  printf("Starting red");
   int exit_code = ReadFlags(&argc, &argv, &options, &config);
-  printf("Flags red");
   if (exit_code >= 0)
     exit(exit_code);
 
@@ -1235,12 +1284,7 @@ NORETURN void real_main(int argc, char** argv) {
     // can be piped into a file without this string showing up.
     if (!options.tool)
       printf("ninja: Entering directory `%s'\n", options.working_dir);
-#ifdef _WIN32
-    wstring wDir = Utf8ToWide(options.working_dir);
-    if (_wchdir(wDir.c_str()) < 0) {
-#else
     if (chdir(options.working_dir) < 0) {
-#endif
       Fatal("chdir to '%s' - %s", options.working_dir, strerror(errno));
     }
   }
@@ -1309,7 +1353,7 @@ NORETURN void real_main(int argc, char** argv) {
 
 }  // anonymous namespace
 
-int maine(int argc, char** argv) {
+int main(int argc, char** argv) {
 #if defined(_MSC_VER)
   // Set a handler to catch crashes not caught by the __try..__except
   // block (e.g. an exception in a stack-unwind-block).
@@ -1328,20 +1372,3 @@ int maine(int argc, char** argv) {
   real_main(argc, argv);
 #endif
 }
-
-
-#ifdef _WIN32
-int wmain(int argc, wchar_t** wargv) // For windows targets
-{	
-  char **argv;
-  argv = (char **)malloc((argc + 1) * sizeof(argv));
-  convertCommandLine(argc,wargv,argv);
-  return maine(argc, argv);
-}
-#else
-int main(int argc, char** argv) // For linux targets
-{
-  return maine(argc, argv);
-}
-#endif
-
