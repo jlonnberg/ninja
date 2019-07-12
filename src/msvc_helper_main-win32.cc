@@ -118,12 +118,11 @@ int MSVCHelperMain(int argc, char** argv) {
 
   wchar_t* w_command = GetCommandLine();
   std::string w_command_str = WideToUtf8(w_command);
-  char* command = const_cast<char*>(w_command_str.c_str());
-  command = strstr(command, " -- ");
-  if (!command) {
+  std::size_t command_pos = w_command_str.find(" -- ");
+  if(command_pos == std::string::npos){
     Fatal("expected command line to end with \" -- command args\"");
   }
-  command += 4;
+  std::string command = w_command_str.substr(command_pos + 4);
 
   CLWrapper cl;
   if (!env.empty())
