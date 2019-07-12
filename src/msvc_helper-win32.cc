@@ -11,15 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#define UNICODE
 
 #include "msvc_helper.h"
 
 #include <windows.h>
 
 #include "util.h"
-
-
 
 namespace {
 
@@ -46,13 +43,8 @@ int CLWrapper::Run(const string& command, string* output) {
   security_attributes.bInheritHandle = TRUE;
 
   // Must be inheritable so subprocesses can dup to children.
-#ifdef UNICODE
   HANDLE nul =
       CreateFile(L"NUL", GENERIC_READ,
-#else
-  HANDLE nul =
-    CreateFile("NUL", GENERIC_READ,
-#endif
                   FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                   &security_attributes, OPEN_EXISTING, 0, NULL);
   if (nul == INVALID_HANDLE_VALUE)

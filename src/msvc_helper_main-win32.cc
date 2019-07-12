@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#define UNICODE
-
 #include "msvc_helper.h"
 
 #include <fcntl.h>
@@ -83,6 +81,8 @@ int MSVCHelperMain(int argc, char** argv) {
   const char* output_filename = NULL;
   const char* envfile = NULL;
 
+  printf("entering msvc main");
+
   const option kLongOptions[] = {
     { "help", no_argument, NULL, 'h' },
     { NULL, 0, NULL, 0 }
@@ -107,6 +107,7 @@ int MSVCHelperMain(int argc, char** argv) {
     }
   }
 
+  printf("reading file");
   string env;
   if (envfile) {
     string err;
@@ -115,15 +116,10 @@ int MSVCHelperMain(int argc, char** argv) {
     PushPathIntoEnvironment(env);
   }
 
-#ifdef UNICODE
   wchar_t* w_command = GetCommandLine();
   std::string w_command_str = WideToUtf8(w_command);
-  char *command = (char *)malloc(w_command_str.length() + 1);
-  strcpy(command, w_command_str.c_str());
-#else
-  char* command = GetCommandLine();
-#endif
-  command = strstr(command," -- ");
+  char* command = const_cast<char*>(w_command_str.c_str());
+  command = strstr(command, " -- ");
   if (!command) {
     Fatal("expected command line to end with \" -- command args\"");
   }
@@ -134,9 +130,6 @@ int MSVCHelperMain(int argc, char** argv) {
     cl.SetEnvBlock((void*)env.data());
   string output;
   int exit_code = cl.Run(command, &output);
-#ifdef UNICODE
-  free(command);
-#endif
 
   if (output_filename) {
     CLParser parser;
@@ -155,6 +148,8 @@ int MSVCHelperMain(int argc, char** argv) {
   // Avoid printf and C strings, since the actual output might contain null
   // bytes like UTF-16 does (yuck).
   fwrite(&output[0], 1, output.size(), stdout);
+
+  printf("exiting msvc main");
 
   return exit_code;
 }

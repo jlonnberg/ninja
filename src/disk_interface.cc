@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "disk_interface.h"
+
 #include <algorithm>
 
 #include <errno.h>
@@ -22,7 +23,6 @@
 #include <sys/types.h>
 
 #ifdef _WIN32
-#define UNICODE
 #include <sstream>
 #include <windows.h>
 #include <direct.h>  // _mkdir
@@ -30,8 +30,6 @@
 
 #include "metrics.h"
 #include "util.h"
-
-
 
 namespace {
 
@@ -73,11 +71,7 @@ TimeStamp TimeStampFromFileTime(const FILETIME& filetime) {
 
 TimeStamp StatSingleFile(const string& path, string* err) {
   WIN32_FILE_ATTRIBUTE_DATA attrs;
-#ifdef UNICODE
   if (!GetFileAttributesEx(Utf8ToWide(path).c_str(), GetFileExInfoStandard, &attrs)) {
-#else
-  if (!GetFileAttributesEx(path.c_str(), GetFileExInfoStandard, &attrs)) {
-#endif
     DWORD win_err = GetLastError();
     if (win_err == ERROR_FILE_NOT_FOUND || win_err == ERROR_PATH_NOT_FOUND)
       return 0;
@@ -97,7 +91,6 @@ bool IsWindows7OrLater() {
       &version_info, VER_MAJORVERSION | VER_MINORVERSION, comparison);
 }
 
-
 bool StatAllFilesInDir(const string& dir, map<string, TimeStamp>* stamps,
                        string* err) {
   // FindExInfoBasic is 30% faster than FindExInfoStandard.
@@ -109,12 +102,9 @@ bool StatAllFilesInDir(const string& dir, map<string, TimeStamp>* stamps,
       can_use_basic_info ? kFindExInfoBasic : FindExInfoStandard;
 
   WIN32_FIND_DATA ffd;
-#ifdef UNICODE
   std::wstring dirname = Utf8ToWide(dir + "\\*");
   HANDLE find_handle = FindFirstFileEx(dirname.c_str(), level, &ffd,
-#else
-  HANDLE find_handle = FindFirstFileEx((dir + "\\*").c_str(), level, &ffd,
-#endif
+
                                         FindExSearchNameMatch, NULL, 0);
 
   if (find_handle == INVALID_HANDLE_VALUE) {

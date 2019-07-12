@@ -118,6 +118,7 @@ bool Truncate(const string& path, size_t size, string* err);
 /// UTF-8 converters
 std::wstring Utf8ToWide(const std::string& s);
 std::string WideToUtf8(const std::wstring& s);
+void convertCommandLine(int argc, wchar_t** wargv, char** argv);
 
 /// Convert the value returned by GetLastError() into a string.
 string GetLastErrorString();

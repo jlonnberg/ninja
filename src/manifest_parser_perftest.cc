@@ -71,7 +71,7 @@ int LoadManifests(bool measure_command_evaluation) {
   return optimization_guard;
 }
 
-int main(int argc, char* argv[]) {
+int maine(int argc, char* argv[]) {
   bool measure_command_evaluation = true;
   int opt;
   while ((opt = getopt(argc, argv, const_cast<char*>("fh"))) != -1) {
@@ -99,7 +99,11 @@ int main(int argc, char* argv[]) {
   }
 
   if (chdir(kManifestDir) < 0)
-    Fatal("chdir: %s", strerror(errno));
+  {
+    fprintf(stderr, "chdir: %s", strerror(errno));
+    return 1;
+  }
+    
 
   const int kNumRepetitions = 5;
   vector<int> times;
@@ -115,4 +119,21 @@ int main(int argc, char* argv[]) {
   int max = *max_element(times.begin(), times.end());
   float total = accumulate(times.begin(), times.end(), 0.0f);
   printf("min %dms  max %dms  avg %.1fms\n", min, max, total / times.size());
+
+  return 0;
 }
+
+#ifdef _WIN32
+int wmain(int argc, wchar_t** wargv) // For windows targets
+{
+	char **argv;
+	argv = (char **)malloc((argc + 1) * sizeof(argv));
+  convertCommandLine(argc,wargv,argv);
+  return maine(argc, argv);
+}
+#else
+int main(int argc, char** argv) // For linux targets
+{
+	return maine(argc, argv);
+}
+#endif

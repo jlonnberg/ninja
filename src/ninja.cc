@@ -21,7 +21,6 @@
 #include <string.h>
 
 #ifdef _WIN32
-#define UNICODE
 #include "getopt.h"
 #include <direct.h>
 #include <windows.h>
@@ -356,6 +355,7 @@ int NinjaMain::ToolQuery(const Options* options, int argc, char* argv[]) {
     return 1;
   }
 
+
   for (int i = 0; i < argc; ++i) {
     string err;
     Node* node = CollectTarget(argv[i], &err);
@@ -404,6 +404,7 @@ int NinjaMain::ToolBrowse(const Options*, int, char**) {
 #if defined(_MSC_VER)
 int NinjaMain::ToolMSVC(const Options* options, int argc, char* argv[]) {
   // Reset getopt: push one argument onto the front of argv, reset optind.
+  printf("Launching msvc");
   argc++;
   argv--;
   optind = 0;
@@ -814,6 +815,7 @@ int NinjaMain::ToolUrtle(const Options* options, int argc, char** argv) {
 /// Find the function to execute for \a tool_name and return it via \a func.
 /// Returns a Tool, or NULL if Ninja should exit.
 const Tool* ChooseTool(const string& tool_name) {
+  printf("choosing tool");
   static const Tool kTools[] = {
     { "browse", "browse dependency graph in a web browser",
       Tool::RUN_AFTER_LOAD, &NinjaMain::ToolBrowse },
@@ -1115,7 +1117,7 @@ int ExceptionFilter(unsigned int code, struct _EXCEPTION_POINTERS *ep) {
 int ReadFlags(int* argc, char*** argv,
               Options* options, BuildConfig* config) {
   config->parallelism = GuessParallelism();
-
+  printf("Reading flagts");
   enum { OPT_VERSION = 1 };
   const option kLongOptions[] = {
     { "help", no_argument, NULL, 'h' },
@@ -1128,6 +1130,7 @@ int ReadFlags(int* argc, char*** argv,
   while (!options->tool &&
          (opt = getopt_long(*argc, *argv, "d:f:j:k:l:nt:vw:C:h", kLongOptions,
                             NULL)) != -1) {
+    printf("Option found %d", opt);
     switch (opt) {
       case 'd':
         if (!DebugEnable(optarg))
@@ -1203,15 +1206,19 @@ int ReadFlags(int* argc, char*** argv,
 NORETURN void real_main(int argc, char** argv) {
   // Use exit() instead of return in this function to avoid potentially
   // expensive cleanup when destructing NinjaMain.
+  printf("Starting ninja");
   BuildConfig config;
   Options options = {};
   options.input_file = "build.ninja";
   options.dupe_edges_should_err = true;
 
+  printf("Set buf");
   setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
   const char* ninja_command = argv[0];
 
+  printf("Starting red");
   int exit_code = ReadFlags(&argc, &argv, &options, &config);
+  printf("Flags red");
   if (exit_code >= 0)
     exit(exit_code);
 
@@ -1228,11 +1235,11 @@ NORETURN void real_main(int argc, char** argv) {
     // can be piped into a file without this string showing up.
     if (!options.tool)
       printf("ninja: Entering directory `%s'\n", options.working_dir);
-#ifdef UNICODE
-	wstring wDir = Utf8ToWide(options.working_dir);
-	if (_wchdir(wDir.c_str()) < 0) {
+#ifdef _WIN32
+    wstring wDir = Utf8ToWide(options.working_dir);
+    if (_wchdir(wDir.c_str()) < 0) {
 #else
-	if (chdir(options.working_dir) < 0) {
+    if (chdir(options.working_dir) < 0) {
 #endif
       Fatal("chdir to '%s' - %s", options.working_dir, strerror(errno));
     }
@@ -1325,41 +1332,16 @@ int maine(int argc, char** argv) {
 
 #ifdef _WIN32
 int wmain(int argc, wchar_t** wargv) // For windows targets
-{
-	
-	char **argv;
-	argv = (char **)malloc((argc + 1) * sizeof(argv));
-
-	wstring w_argString;
-	string  argString;
-	string test;
-
-	// Perform the conversion
-	for (int i = 0; i < argc; i++)
-	{
-		// Convert the string
-		argString = WideToUtf8(wargv[i]);
-
-		// Prepare space in the vector
-		argv[i] = (char *)malloc(argString.length() + 1);
-		char *ptr = (char *)argv[i];
-
-		// Copy the final results.
-		strcpy(ptr, argString.c_str());
-	}
-
-	// Just to follow the c++ standard, we need to add this!
-	// Also, ninja will not work properly if we do not do so.
-	argv[argc] = (char *)malloc(sizeof(char *));
-	argv[argc] = NULL;
-	
-
-	return maine(argc, argv);
+{	
+  char **argv;
+  argv = (char **)malloc((argc + 1) * sizeof(argv));
+  convertCommandLine(argc,wargv,argv);
+  return maine(argc, argv);
 }
 #else
 int main(int argc, char** argv) // For linux targets
 {
-	return maine(argc, argv);
+  return maine(argc, argv);
 }
 #endif
 
