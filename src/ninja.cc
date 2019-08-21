@@ -732,7 +732,8 @@ enum EvaluateCommandMode {
   ECM_NORMAL,
   ECM_EXPAND_RSPFILE
 };
-string EvaluateCommandWithRspfile(Edge* edge, EvaluateCommandMode mode) {
+std::string EvaluateCommandWithRspfile(const Edge* edge,
+                                       const EvaluateCommandMode mode) {
   string command = edge->EvaluateCommand();
   if (mode == ECM_NORMAL)
     return command;
@@ -754,6 +755,19 @@ string EvaluateCommandWithRspfile(Edge* edge, EvaluateCommandMode mode) {
   }
   command.replace(index - 1, rspfile.length() + 1, rspfile_content);
   return command;
+}
+
+void printCompdb(const char* const directory, const Edge* const edge,
+                 const EvaluateCommandMode eval_mode) {
+  printf("\n  {\n    \"directory\": \"");
+  EncodeJSONString(directory);
+  printf("\",\n    \"command\": \"");
+  EncodeJSONString(EvaluateCommandWithRspfile(edge, eval_mode).c_str());
+  printf("\",\n    \"file\": \"");
+  EncodeJSONString(edge->inputs_[0]->path().c_str());
+  printf("\",\n    \"output\": \"");
+  EncodeJSONString(edge->outputs_[0]->path().c_str());
+  printf("\"\n  }");
 }
 
 int NinjaMain::ToolCompilationDatabase(const Options* options, int argc,
@@ -804,22 +818,21 @@ int NinjaMain::ToolCompilationDatabase(const Options* options, int argc,
        e != state_.edges_.end(); ++e) {
     if ((*e)->inputs_.empty())
       continue;
-    for (int i = 0; i != argc; ++i) {
-      if ((*e)->rule_->name() == argv[i]) {
-        if (!first)
-          putchar(',');
-
-        printf("\n  {\n    \"directory\": \"");
-        EncodeJSONString(&cwd[0]);
-        printf("\",\n    \"command\": \"");
-        EncodeJSONString(EvaluateCommandWithRspfile(*e, eval_mode).c_str());
-        printf("\",\n    \"file\": \"");
-        EncodeJSONString((*e)->inputs_[0]->path().c_str());
-        printf("\",\n    \"output\": \"");
-        EncodeJSONString((*e)->outputs_[0]->path().c_str());
-        printf("\"\n  }");
-
-        first = false;
+    if (argc == 0) {
+      if (!first) {
+        putchar(',');
+      }
+      printCompdb(&cwd[0], *e, eval_mode);
+      first = false;
+    } else {
+      for (int i = 0; i != argc; ++i) {
+        if ((*e)->rule_->name() == argv[i]) {
+          if (!first) {
+            putchar(',');
+          }
+          printCompdb(&cwd[0], *e, eval_mode);
+          first = false;
+        }
       }
     }
   }

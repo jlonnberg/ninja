@@ -60,6 +60,8 @@ class Platform(object):
             self._platform = 'netbsd'
         elif self._platform.startswith('aix'):
             self._platform = 'aix'
+        elif self._platform.startswith('os400'):
+            self._platform = 'os400'
         elif self._platform.startswith('dragonfly'):
             self._platform = 'dragonfly'
 
@@ -96,6 +98,9 @@ class Platform(object):
 
     def is_aix(self):
         return self._platform == 'aix'
+
+    def is_os400_pase(self):
+        return self._platform == 'os400' or os.uname().sysname.startswith('OS400')
 
     def uses_usr_local(self):
         return self._platform in ('freebsd', 'openbsd', 'bitrig', 'dragonfly', 'netbsd')
@@ -351,7 +356,7 @@ else:
     except:
         pass
     if platform.is_mingw():
-        cflags += ['-D_WIN32_WINNT=0x0501']
+        cflags += ['-D_WIN32_WINNT=0x0601']
     if platform.is_windows():
         cflags += ['-DUNICODE']
     ldflags = ['-L$builddir']
@@ -436,7 +441,7 @@ if host.is_msvc():
            description='LIB $out')
 elif host.is_mingw():
     n.rule('ar',
-           command='cmd /c $ar cqs $out.tmp $in && mv $out.tmp $out',
+           command='cmd /c $ar cqs $out.tmp $in && move /Y $out.tmp $out',
            description='AR $out')
 else:
     n.rule('ar',
@@ -540,7 +545,7 @@ if platform.is_msvc():
 else:
     libs.append('-lninja')
 
-if platform.is_aix():
+if platform.is_aix() and not platform.is_os400_pase():
     libs.append('-lperfstat')
 
 all_targets = []

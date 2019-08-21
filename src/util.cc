@@ -50,7 +50,7 @@
 #elif defined(__SVR4) && defined(__sun)
 #include <unistd.h>
 #include <sys/loadavg.h>
-#elif defined(_AIX)
+#elif defined(_AIX) && !defined(__PASE__)
 #include <libperfstat.h>
 #elif defined(linux) || defined(__GLIBC__)
 #include <sys/sysinfo.h>
@@ -524,9 +524,7 @@ string StripAnsiEscapeCodes(const string& in) {
 
 int GetProcessorCount() {
 #ifdef _WIN32
-  SYSTEM_INFO info;
-  GetNativeSystemInfo(&info);
-  return info.dwNumberOfProcessors;
+  return GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
 #else
 #ifdef CPU_COUNT
   // The number of exposed processors might not represent the actual number of
@@ -606,6 +604,10 @@ double GetLoadAverage() {
   }
 
   return posix_compatible_load;
+}
+#elif defined(__PASE__)
+double GetLoadAverage() {
+  return -0.0f;
 }
 #elif defined(_AIX)
 double GetLoadAverage() {
