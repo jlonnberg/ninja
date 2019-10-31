@@ -342,7 +342,11 @@ string EdgeEnv::LookupVariable(const string& var) {
   if (var == "in" || var == "in_newline") {
     int explicit_deps_count = edge_->inputs_.size() - edge_->implicit_deps_ -
       edge_->order_only_deps_;
+#if __cplusplus >= 201103L
+    return MakePathList(edge_->inputs_.data(), explicit_deps_count,
+#else
     return MakePathList(&edge_->inputs_[0], explicit_deps_count,
+#endif
                         var == "in" ? ' ' : '\n');
   } else if (var == "out") {
     int explicit_outs_count = edge_->outputs_.size() - edge_->implicit_outs_;
@@ -406,16 +410,16 @@ std::string Edge::GetBinding(const std::string& key) const {
   return env.LookupVariable(key);
 }
 
-bool Edge::GetBindingBool(const string& key) {
+bool Edge::GetBindingBool(const string& key) const {
   return !GetBinding(key).empty();
 }
 
-string Edge::GetUnescapedDepfile() {
+string Edge::GetUnescapedDepfile() const {
   EdgeEnv env(this, EdgeEnv::kDoNotEscape);
   return env.LookupVariable("depfile");
 }
 
-string Edge::GetUnescapedDyndep() {
+string Edge::GetUnescapedDyndep() const {
   EdgeEnv env(this, EdgeEnv::kDoNotEscape);
   return env.LookupVariable("dyndep");
 }
