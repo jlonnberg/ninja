@@ -81,6 +81,8 @@ int MSVCHelperMain(int argc, char** argv) {
   const char* output_filename = NULL;
   const char* envfile = NULL;
 
+  printf("entering msvc main");
+
   const option kLongOptions[] = {
     { "help", no_argument, NULL, 'h' },
     { NULL, 0, NULL, 0 }
@@ -105,6 +107,7 @@ int MSVCHelperMain(int argc, char** argv) {
     }
   }
 
+  printf("reading file");
   string env;
   if (envfile) {
     string err;
@@ -113,12 +116,13 @@ int MSVCHelperMain(int argc, char** argv) {
     PushPathIntoEnvironment(env);
   }
 
-  char* command = GetCommandLineA();
-  command = strstr(command, " -- ");
-  if (!command) {
+  wchar_t* w_command = GetCommandLine();
+  std::string w_command_str = WideToUtf8(w_command);
+  std::size_t command_pos = w_command_str.find(" -- ");
+  if(command_pos == std::string::npos){
     Fatal("expected command line to end with \" -- command args\"");
   }
-  command += 4;
+  std::string command = w_command_str.substr(command_pos + 4);
 
   CLWrapper cl;
   if (!env.empty())
@@ -143,6 +147,8 @@ int MSVCHelperMain(int argc, char** argv) {
   // Avoid printf and C strings, since the actual output might contain null
   // bytes like UTF-16 does (yuck).
   fwrite(&output[0], 1, output.size(), stdout);
+
+  printf("exiting msvc main");
 
   return exit_code;
 }

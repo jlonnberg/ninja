@@ -63,6 +63,11 @@ else()
 	target_sources(libninja PRIVATE src/subprocess-posix.cc)
 endif()
 
+
+if(WIN32)
+        add_definitions(-DUNICODE)
+endif()
+
 #Fixes GetActiveProcessorCount on MinGW
 if(MINGW)
 target_compile_definitions(libninja PRIVATE _WIN32_WINNT=0x0601)
