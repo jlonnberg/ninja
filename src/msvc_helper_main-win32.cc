@@ -81,8 +81,6 @@ int MSVCHelperMain(int argc, char** argv) {
   const char* output_filename = NULL;
   const char* envfile = NULL;
 
-  printf("entering msvc main");
-
   const option kLongOptions[] = {
     { "help", no_argument, NULL, 'h' },
     { NULL, 0, NULL, 0 }
@@ -107,7 +105,6 @@ int MSVCHelperMain(int argc, char** argv) {
     }
   }
 
-  printf("reading file");
   string env;
   if (envfile) {
     string err;
@@ -147,8 +144,6 @@ int MSVCHelperMain(int argc, char** argv) {
   // Avoid printf and C strings, since the actual output might contain null
   // bytes like UTF-16 does (yuck).
   fwrite(&output[0], 1, output.size(), stdout);
-
-  printf("exiting msvc main");
 
   return exit_code;
 }
