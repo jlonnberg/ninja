@@ -71,7 +71,7 @@ int LoadManifests(bool measure_command_evaluation) {
   return optimization_guard;
 }
 
-int maine(int argc, char* argv[]) {
+int main(int argc, char* argv[]) {
   bool measure_command_evaluation = true;
   int opt;
   while ((opt = getopt(argc, argv, const_cast<char*>("fh"))) != -1) {
